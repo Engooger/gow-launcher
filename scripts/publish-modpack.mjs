@@ -33,7 +33,6 @@ const VERSION = args.version || `0.0.${Date.now()}`;
 const TAG = `v${VERSION}`;
 const PACK_DIR = args.pack || 'D:/steam/Новая папка';
 const GOW_JAR = args.gow || 'D:/steam/Новая папка/mods/gow-0.1.0.jar';
-const NEOFORGE_INSTALLER = args.installer || 'C:/Users/helly/Downloads/neoforge-21.1.229-installer.jar';
 const REPO = args.repo || 'Engooger/gow-modpack';
 const OUT = path.resolve('build', VERSION);
 const MC_VERSION = '1.21.1';
@@ -199,18 +198,23 @@ const manifest = {
   components,
 };
 
-// NeoForge installer (если есть локально — закидываем в релиз)
-let neoInstallerOut = null;
-if (fs.existsSync(NEOFORGE_INSTALLER)) {
-  console.log('  → neoforge-installer.jar');
-  const name = `neoforge-${NEOFORGE_VERSION}-installer.jar`;
-  neoInstallerOut = path.join(OUT, name);
-  fs.copyFileSync(NEOFORGE_INSTALLER, neoInstallerOut);
-  manifest.neoforgeInstaller = {
-    url: `https://github.com/${REPO}/releases/download/${TAG}/${name}`,
-    sha256: sha256(neoInstallerOut),
-  };
+// NeoForge installer — берём из --installer или качаем с maven
+const installerName = `neoforge-${NEOFORGE_VERSION}-installer.jar`;
+const neoInstallerOut = path.join(OUT, installerName);
+if (args.installer && fs.existsSync(args.installer)) {
+  console.log(`  → ${installerName} (из ${args.installer})`);
+  fs.copyFileSync(args.installer, neoInstallerOut);
+} else {
+  console.log(`  → ${installerName} (качаю с maven.neoforged.net)`);
+  const mavenUrl = `https://maven.neoforged.net/releases/net/neoforged/neoforge/${NEOFORGE_VERSION}/${installerName}`;
+  const res = await fetch(mavenUrl, { redirect: 'follow' });
+  if (!res.ok) throw new Error(`Не удалось скачать NeoForge installer: ${res.status}`);
+  fs.writeFileSync(neoInstallerOut, Buffer.from(await res.arrayBuffer()));
 }
+manifest.neoforgeInstaller = {
+  url: `https://github.com/${REPO}/releases/download/${TAG}/${installerName}`,
+  sha256: sha256(neoInstallerOut),
+};
 const manifestPath = path.join(OUT, 'manifest.json');
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 console.log(`Манифест: ${manifestPath}`);
@@ -227,7 +231,7 @@ const assets = [
   [gowOut, 'application/java-archive'],
 ];
 if (kubejsZip) assets.splice(3, 0, [kubejsZip, 'application/zip']);
-if (neoInstallerOut) assets.push([neoInstallerOut, 'application/java-archive']);
+assets.push([neoInstallerOut, 'application/java-archive']);
 
 for (const [file, ct] of assets) {
   await uploadAsset(uploadUrl, file, ct);
