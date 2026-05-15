@@ -24,7 +24,7 @@ export async function launchMinecraft(
   const root = mcDir();
 
   const javaExe = await ensureJava21(progress);
-  await ensureNeoForge(manifest.neoforge, javaExe, progress);
+  await ensureNeoForge(manifest.neoforge, javaExe, progress, manifest.neoforgeInstaller);
 
   progress({ stage: 'launch', percent: 95, detail: 'Запуск Minecraft' });
 

@@ -33,6 +33,7 @@ const VERSION = args.version || `0.0.${Date.now()}`;
 const TAG = `v${VERSION}`;
 const PACK_DIR = args.pack || 'D:/steam/Новая папка';
 const GOW_JAR = args.gow || 'D:/steam/Новая папка/mods/gow-0.1.0.jar';
+const NEOFORGE_INSTALLER = args.installer || 'C:/Users/helly/Downloads/neoforge-21.1.229-installer.jar';
 const REPO = args.repo || 'Engooger/gow-modpack';
 const OUT = path.resolve('build', VERSION);
 const MC_VERSION = '1.21.1';
@@ -197,6 +198,19 @@ const manifest = {
   java: JAVA,
   components,
 };
+
+// NeoForge installer (если есть локально — закидываем в релиз)
+let neoInstallerOut = null;
+if (fs.existsSync(NEOFORGE_INSTALLER)) {
+  console.log('  → neoforge-installer.jar');
+  const name = `neoforge-${NEOFORGE_VERSION}-installer.jar`;
+  neoInstallerOut = path.join(OUT, name);
+  fs.copyFileSync(NEOFORGE_INSTALLER, neoInstallerOut);
+  manifest.neoforgeInstaller = {
+    url: `https://github.com/${REPO}/releases/download/${TAG}/${name}`,
+    sha256: sha256(neoInstallerOut),
+  };
+}
 const manifestPath = path.join(OUT, 'manifest.json');
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 console.log(`Манифест: ${manifestPath}`);
@@ -213,6 +227,7 @@ const assets = [
   [gowOut, 'application/java-archive'],
 ];
 if (kubejsZip) assets.splice(3, 0, [kubejsZip, 'application/zip']);
+if (neoInstallerOut) assets.push([neoInstallerOut, 'application/java-archive']);
 
 for (const [file, ct] of assets) {
   await uploadAsset(uploadUrl, file, ct);

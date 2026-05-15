@@ -10,6 +10,7 @@ export type Manifest = {
   version: string;
   minecraft: string;
   neoforge: string;
+  neoforgeInstaller?: { url: string; sha256: string };
   java: number;
   components: Component[];
 };

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { mcDir } from './paths.js';
 
@@ -14,7 +15,7 @@ export function neoInstalled(version: string): boolean {
   return fs.existsSync(path.join(mcDir(), 'versions', id, `${id}.json`));
 }
 
-function installerUrl(version: string): string {
+function mavenInstallerUrl(version: string): string {
   return `https://maven.neoforged.net/releases/net/neoforged/neoforge/${version}/neoforge-${version}-installer.jar`;
 }
 
@@ -26,23 +27,47 @@ async function downloadFile(url: string, dest: string) {
   fs.writeFileSync(dest, buf);
 }
 
+function sha256(file: string): string {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
 function ensureLauncherProfiles() {
-  // NeoForge installer требует launcher_profiles.json в MC dir
   const p = path.join(mcDir(), 'launcher_profiles.json');
   if (!fs.existsSync(p)) {
-    fs.writeFileSync(
-      p,
-      JSON.stringify({ profiles: {}, settings: {}, version: 3 }, null, 2)
-    );
+    fs.writeFileSync(p, JSON.stringify({ profiles: {}, settings: {}, version: 3 }, null, 2));
   }
 }
 
-export async function ensureNeoForge(version: string, javaExe: string, progress: Progress): Promise<void> {
+export async function ensureNeoForge(
+  version: string,
+  javaExe: string,
+  progress: Progress,
+  installer?: { url: string; sha256: string }
+): Promise<void> {
   if (neoInstalled(version)) return;
 
-  progress({ stage: 'neoforge', percent: 90, detail: 'Скачиваю NeoForge installer' });
   const installerPath = path.join(mcDir(), `neoforge-${version}-installer.jar`);
-  await downloadFile(installerUrl(version), installerPath);
+
+  progress({ stage: 'neoforge', percent: 90, detail: 'Скачиваю NeoForge installer' });
+
+  const url = installer?.url ?? mavenInstallerUrl(version);
+  try {
+    await downloadFile(url, installerPath);
+  } catch (e) {
+    if (installer) {
+      // фолбэк на maven если GitHub отказал
+      await downloadFile(mavenInstallerUrl(version), installerPath);
+    } else {
+      throw e;
+    }
+  }
+
+  if (installer) {
+    const got = sha256(installerPath);
+    if (got !== installer.sha256) {
+      throw new Error(`SHA256 NeoForge installer не совпал: ${got} != ${installer.sha256}`);
+    }
+  }
 
   ensureLauncherProfiles();
 
