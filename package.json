@@ -47,7 +47,8 @@
         }
       ],
       "signAndEditExecutable": false,
-      "icon": "build-assets/icon.ico"
+      "icon": "build-assets/icon.ico",
+      "artifactName": "GoW-Launcher-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
