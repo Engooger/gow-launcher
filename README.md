@@ -1,48 +1,43 @@
-# GoW Launcher
+# God of War — Minecraft Launcher
 
-Самописный лаунчер для модпака God of War (Minecraft 1.21.1 + NeoForge 21.1.229).
+Официальный лаунчер для модпака **God of War** на Minecraft. Проект переносит вселенную скандинавской саги Кратоса в Minecraft с собственной прогрессией, кастомными мирами, кузнями Ивальди и Сурта, лабиринтом туманов и Горнилом Муспеля.
 
-## Запуск разработки
+## Что делает лаунчер
+
+- Качает и обновляет сборку модпака автоматически
+- Ставит нужную версию Java и NeoForge без участия игрока
+- Поддерживает офлайн-вход — играй с друзьями по своему серверу
+- Один клик — игра запускается
+
+## Установка
+
+1. Скачай `GoW-Launcher-Setup-<версия>.exe` со страницы [Releases](../../releases)
+2. Установи, запусти
+3. Введи ник, нажми **Играть**
+
+Первый запуск займёт 5-10 минут — лаунчер скачает Java, NeoForge, ванильный Minecraft и сборку модпака (~400МБ). Все последующие запуски — мгновенные, обновления качаются только в случае изменений.
+
+## Содержимое модпака
+
+- Minecraft 1.21.1
+- NeoForge 21.1.229
+- 68+ модов: Apotheosis, Create, Epic Fight, Dungeons Arise, Alex's Mobs, FTB Quests и др.
+- Собственный мод God of War — врата Иггдрасиля, выбор миров, лабиринт Ивальди
+- KubeJS-скрипты и кастомные конфиги
+
+## Сервер
+
+Сервер крутится отдельно. Для подключения добавь IP в Multiplayer внутри игры (выдаётся в Discord/в приватке).
+
+## Для разработчиков
+
+Лаунчер написан на Electron + React + TypeScript.
 
 ```bash
 npm install
-npm run dev       # Vite dev-сервер (http://localhost:5173)
-# в другом терминале:
-npm run start     # компилит electron и запускает
+npm run dev     # Vite dev server
+npm start       # запуск Electron в дев-режиме
+npm run dist    # сборка .exe
 ```
 
-## Сборка установщика
-
-```bash
-npm run dist      # NSIS .exe в release/
-```
-
-## Публикация модпака
-
-1. Создай GitHub репо `gow-modpack` (приватный или публичный — лаунчер качает через прямые ссылки релизов, public проще).
-2. Авторизуй gh CLI: `gh auth login`.
-3. Пропиши свой `user/repo` в `electron/config.ts` (`modpackRepo`) и в `scripts/publish-modpack.mjs` (`REPO`).
-4. Опубликуй:
-
-```bash
-node scripts/publish-modpack.mjs --version 0.1.0 --repo USER/gow-modpack
-```
-
-Скрипт:
-- зипует `mods/`, `config/`, `kubejs/` из `D:/steam/Новая папка`
-- кладёт `gow.jar` отдельным компонентом (часто меняется)
-- считает SHA256
-- генерит `manifest.json`
-- заливает всё как GitHub Release
-
-Лаунчер на запуске тянет `manifest.json` из `latest` релиза, сверяет хеши, докачивает только что изменилось. Если интернета нет — играет на локальной версии (по `manifest.local.json`).
-
-## Установка NeoForge
-
-На первом запуске нужно один раз поставить NeoForge installer вручную в `%APPDATA%/.gow-launcher/minecraft`. Авто-инсталлер NeoForge — в TODO.
-
-## Структура
-
-- `electron/` — main process, IPC, updater, launcher
-- `src/` — React UI
-- `scripts/publish-modpack.mjs` — паковщик и публикатор сборки
+Архитектура синка описана в `electron/updater.ts`. Манифест сборки публикуется как GitHub Release в репо [gow-modpack](https://github.com/Engooger/gow-modpack).
