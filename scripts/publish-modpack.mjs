@@ -1,16 +1,19 @@
 #!/usr/bin/env node
-// Пакует mods/config/kubejs из сборки в zip, считает SHA256, готовит manifest.json
-// и публикует GitHub Release через `gh` CLI.
+// Пакует mods/config/kubejs из сборки в zip, считает SHA256, генерит manifest.json
+// и публикует GitHub Release через REST API (без gh CLI).
 //
 // Использование:
-//   node scripts/publish-modpack.mjs --version 0.1.0
+//   GH_TOKEN=ghp_xxx node scripts/publish-modpack.mjs --version 0.1.0
 //
-// Требуется: gh CLI авторизован, репо gow-modpack создан.
+// Параметры:
+//   --version 0.1.0          версия релиза (тэг будет v0.1.0)
+//   --pack "D:/..."          путь к папке сборки
+//   --gow "D:/.../gow.jar"   путь к gow-jar
+//   --repo Engooger/gow-modpack
 
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execSync } from 'node:child_process';
 import AdmZip from 'adm-zip';
 
 const args = Object.fromEntries(
@@ -20,7 +23,14 @@ const args = Object.fromEntries(
   }, [])
 );
 
+const TOKEN = process.env.GH_TOKEN;
+if (!TOKEN) {
+  console.error('Не задан GH_TOKEN. Запусти как: $env:GH_TOKEN="ghp_..."; node scripts/publish-modpack.mjs ...');
+  process.exit(1);
+}
+
 const VERSION = args.version || `0.0.${Date.now()}`;
+const TAG = `v${VERSION}`;
 const PACK_DIR = args.pack || 'D:/steam/Новая папка';
 const GOW_JAR = args.gow || 'D:/steam/Новая папка/mods/gow-0.1.0.jar';
 const REPO = args.repo || 'Engooger/gow-modpack';
@@ -38,35 +48,99 @@ function sha256(file) {
 }
 
 function zipFolder(srcDir, outFile, options = {}) {
-  const { exclude = [] } = options;
+  const { excludePrefix = [] } = options;
   const zip = new AdmZip();
   function walk(dir, rel = '') {
     for (const name of fs.readdirSync(dir)) {
       const full = path.join(dir, name);
-      const relPath = path.join(rel, name).replace(/\\/g, '/');
-      if (exclude.some((e) => relPath.includes(e))) continue;
+      const relPath = path.posix.join(rel, name);
       const st = fs.statSync(full);
       if (st.isDirectory()) walk(full, relPath);
-      else zip.addLocalFile(full, rel.replace(/\\/g, '/'));
+      else {
+        if (excludePrefix.some((p) => name.startsWith(p))) continue;
+        zip.addLocalFile(full, rel);
+      }
     }
   }
   walk(srcDir);
   zip.writeZip(outFile);
 }
 
-console.log(`Сборка модпака v${VERSION} из ${PACK_DIR}`);
+async function api(method, url, body, extraHeaders = {}) {
+  const res = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `token ${TOKEN}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(body && !(body instanceof Buffer) ? { 'Content-Type': 'application/json' } : {}),
+      ...extraHeaders,
+    },
+    body: body instanceof Buffer ? body : body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`${method} ${url} → ${res.status} ${t}`);
+  }
+  return res.json();
+}
 
-// 1. Моды (без gow-*.jar — он отдельным компонентом)
+async function uploadAsset(uploadUrl, filePath, contentType) {
+  const name = path.basename(filePath);
+  const data = fs.readFileSync(filePath);
+  const url = uploadUrl.replace('{?name,label}', `?name=${encodeURIComponent(name)}`);
+  console.log(`  ↑ ${name} (${(data.length / 1e6).toFixed(1)} MB)`);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `token ${TOKEN}`,
+      'Content-Type': contentType,
+      'Content-Length': String(data.length),
+    },
+    body: data,
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Upload ${name} failed: ${res.status} ${t}`);
+  }
+}
+
+async function getOrCreateRelease() {
+  // Удаляем существующий релиз с тем же тэгом, если есть (для пересоздания)
+  try {
+    const existing = await api('GET', `https://api.github.com/repos/${REPO}/releases/tags/${TAG}`);
+    if (existing.id) {
+      console.log(`  Удаляю существующий релиз ${TAG}`);
+      await api('DELETE', `https://api.github.com/repos/${REPO}/releases/${existing.id}`);
+      // и тэг тоже
+      try {
+        await api('DELETE', `https://api.github.com/repos/${REPO}/git/refs/tags/${TAG}`);
+      } catch {}
+    }
+  } catch {}
+
+  return await api('POST', `https://api.github.com/repos/${REPO}/releases`, {
+    tag_name: TAG,
+    name: `GoW Modpack ${TAG}`,
+    body: `Auto-published.\n\nMC ${MC_VERSION} · NeoForge ${NEOFORGE_VERSION}`,
+    draft: false,
+    prerelease: false,
+  });
+}
+
+console.log(`Сборка модпака ${TAG} из ${PACK_DIR}`);
+
+// 1. Моды (без gow-*.jar)
 console.log('  → mods.zip');
 const modsZip = path.join(OUT, 'mods.zip');
-zipFolder(path.join(PACK_DIR, 'mods'), modsZip, { exclude: ['gow-'] });
+zipFolder(path.join(PACK_DIR, 'mods'), modsZip, { excludePrefix: ['gow-'] });
 
 // 2. Конфиги
 console.log('  → config.zip');
 const configZip = path.join(OUT, 'config.zip');
 zipFolder(path.join(PACK_DIR, 'config'), configZip);
 
-// 3. KubeJS (если есть)
+// 3. KubeJS
 let kubejsZip = null;
 if (fs.existsSync(path.join(PACK_DIR, 'kubejs'))) {
   console.log('  → kubejs.zip');
@@ -74,7 +148,7 @@ if (fs.existsSync(path.join(PACK_DIR, 'kubejs'))) {
   zipFolder(path.join(PACK_DIR, 'kubejs'), kubejsZip);
 }
 
-// 4. GoW мод (отдельно, часто меняется)
+// 4. GoW мод
 console.log('  → gow.jar');
 const gowOut = path.join(OUT, 'gow.jar');
 fs.copyFileSync(GOW_JAR, gowOut);
@@ -97,16 +171,9 @@ const components = [
     extractTo: 'config',
     wipeBeforeExtract: true,
   },
-  {
-    name: 'gow',
-    file: 'gow.jar',
-    sha256: sha256(gowOut),
-    size: fs.statSync(gowOut).size,
-    copyTo: 'mods/gow.jar',
-  },
 ];
 if (kubejsZip) {
-  components.splice(2, 0, {
+  components.push({
     name: 'kubejs',
     file: 'kubejs.zip',
     sha256: sha256(kubejsZip),
@@ -115,9 +182,16 @@ if (kubejsZip) {
     wipeBeforeExtract: true,
   });
 }
+components.push({
+  name: 'gow',
+  file: 'gow.jar',
+  sha256: sha256(gowOut),
+  size: fs.statSync(gowOut).size,
+  copyTo: 'mods/gow.jar',
+});
 
 const manifest = {
-  version: `v${VERSION}`,
+  version: TAG,
   minecraft: MC_VERSION,
   neoforge: NEOFORGE_VERSION,
   java: JAVA,
@@ -127,16 +201,21 @@ const manifestPath = path.join(OUT, 'manifest.json');
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 console.log(`Манифест: ${manifestPath}`);
 
-// 6. Публикация в GitHub Release
-console.log(`\nЗаливка релиза v${VERSION} в ${REPO}...`);
-const assets = [manifestPath, modsZip, configZip, gowOut, kubejsZip].filter(Boolean);
-try {
-  execSync(
-    `gh release create v${VERSION} ${assets.map((a) => `"${a}"`).join(' ')} --repo ${REPO} --title "GoW Modpack v${VERSION}" --notes "Auto-published"`,
-    { stdio: 'inherit' }
-  );
-  console.log('Готово.');
-} catch (e) {
-  console.error('gh release create упал. Проверь что gh авторизован и репо создан.');
-  console.error('Файлы готовы в:', OUT);
+// 6. Публикация
+console.log(`\nПубликую релиз ${TAG} в ${REPO}...`);
+const release = await getOrCreateRelease();
+const uploadUrl = release.upload_url;
+
+const assets = [
+  [manifestPath, 'application/json'],
+  [modsZip, 'application/zip'],
+  [configZip, 'application/zip'],
+  [gowOut, 'application/java-archive'],
+];
+if (kubejsZip) assets.splice(3, 0, [kubejsZip, 'application/zip']);
+
+for (const [file, ct] of assets) {
+  await uploadAsset(uploadUrl, file, ct);
 }
+
+console.log(`\nГотово: ${release.html_url}`);
