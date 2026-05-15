@@ -1,7 +1,5 @@
-import electronUpdater from 'electron-updater';
+import { autoUpdater } from 'electron-updater';
 import { BrowserWindow } from 'electron';
-
-const { autoUpdater } = electronUpdater;
 
 type Progress = (p: { stage: string; percent: number; detail?: string }) => void;
 

@@ -1,13 +1,11 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { loadProfile, saveProfile, defaultInstallDir, gameRoot, Profile } from './paths.js';
 import { syncModpack } from './updater.js';
 import { launchMinecraft } from './launcher.js';
 import { setupAutoUpdate, quitAndInstall } from './autoupdate.js';
 import { checkDiskSpace } from './diskspace.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
 
 let win: BrowserWindow | null = null;
@@ -19,16 +17,34 @@ function createWindow() {
     resizable: false,
     autoHideMenuBar: true,
     backgroundColor: '#0e0e10',
+    icon: path.join(__dirname, '..', 'build-assets', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  // F12 — открыть DevTools (полезно если что-то ломается)
+  win.webContents.on('before-input-event', (_e, input) => {
+    if (input.key === 'F12' && input.type === 'keyDown') {
+      win!.webContents.toggleDevTools();
+    }
+  });
+
+  win.webContents.on('did-fail-load', (_e, code, desc, url) => {
+    console.error('Failed to load:', code, desc, url);
+    win!.webContents.openDevTools({ mode: 'detach' });
+  });
+
   if (isDev) {
     win.loadURL('http://localhost:5173');
   } else {
-    win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+    win.loadFile(indexPath).catch((err) => {
+      console.error('loadFile failed:', err);
+      win!.webContents.openDevTools({ mode: 'detach' });
+    });
     win.webContents.once('did-finish-load', () => {
       setupAutoUpdate(win!, sendProgress);
     });

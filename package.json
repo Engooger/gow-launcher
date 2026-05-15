@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "description": "God of War Minecraft modpack launcher",
   "main": "dist-electron/main.js",
-  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.electron.json && vite build",
@@ -35,7 +34,8 @@
     "productName": "GoW Launcher",
     "files": [
       "dist/**",
-      "dist-electron/**"
+      "dist-electron/**",
+      "build-assets/icon.ico"
     ],
     "win": {
       "target": [
