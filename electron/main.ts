@@ -1,9 +1,11 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadProfile, saveProfile, defaultInstallDir, Profile } from './paths.js';
+import { loadProfile, saveProfile, defaultInstallDir, gameRoot, Profile } from './paths.js';
 import { syncModpack } from './updater.js';
 import { launchMinecraft } from './launcher.js';
+import { setupAutoUpdate, quitAndInstall } from './autoupdate.js';
+import { checkDiskSpace } from './diskspace.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -27,6 +29,9 @@ function createWindow() {
     win.loadURL('http://localhost:5173');
   } else {
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
+    win.webContents.once('did-finish-load', () => {
+      setupAutoUpdate(win!, sendProgress);
+    });
   }
 }
 
@@ -62,8 +67,21 @@ ipcMain.handle('dialog:pickFolder', async () => {
   return r.filePaths[0];
 });
 
+ipcMain.handle('disk:check', () => checkDiskSpace(gameRoot()));
+
+ipcMain.handle('launcher:install-update', () => {
+  quitAndInstall();
+  return true;
+});
+
 ipcMain.handle('play', async (_e, data: { username: string; ramGb: number }) => {
   try {
+    const disk = checkDiskSpace(gameRoot());
+    if (!disk.ok && disk.free >= 0) {
+      const freeGb = (disk.free / 1e9).toFixed(1);
+      const reqGb = (disk.required / 1e9).toFixed(1);
+      throw new Error(`Мало места на диске: ${freeGb} ГБ свободно, нужно ${reqGb} ГБ`);
+    }
     sendProgress({ stage: 'sync', percent: 0, detail: 'Проверка обновлений' });
     const manifest = await syncModpack(sendProgress);
     sendProgress({ stage: 'launch', percent: 95, detail: 'Запуск Minecraft' });

@@ -235,3 +235,18 @@ input[type="range"] {
   accent-color: #c14a4a;
   height: 6px;
 }
+
+.update-pill {
+  margin-top: 12px;
+  width: 100%;
+  background: rgba(232, 184, 112, 0.12);
+  border: 1px solid rgba(232, 184, 112, 0.35);
+  color: #e8b870;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.update-pill:hover { background: rgba(232, 184, 112, 0.2); }

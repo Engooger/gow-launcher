@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ProgressEvent, Profile } from './types';
+import type { ProgressEvent, Profile, LauncherUpdate } from './types';
 
 export function App() {
   const [profile, setProfile] = useState<Profile>({ username: '', installDir: '', ramGb: 6 });
@@ -7,11 +7,15 @@ export function App() {
   const [progress, setProgress] = useState<ProgressEvent>({ stage: 'idle', percent: 0 });
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [updateReady, setUpdateReady] = useState(false);
 
   useEffect(() => {
     window.api.getProfile().then(setProfile);
-    const unsub = window.api.onProgress(setProgress);
-    return unsub;
+    const u1 = window.api.onProgress(setProgress);
+    const u2 = window.api.onLauncherUpdate((u: LauncherUpdate) => {
+      if (u.state === 'ready') setUpdateReady(true);
+    });
+    return () => { u1(); u2(); };
   }, []);
 
   function update<K extends keyof Profile>(key: K, value: Profile[K]) {
@@ -71,6 +75,12 @@ export function App() {
         <button className="play" onClick={play} disabled={busy}>
           {busy ? 'Запускаю...' : 'Играть'}
         </button>
+
+        {updateReady && (
+          <button className="update-pill" onClick={() => window.api.installUpdate()}>
+            Доступна новая версия лаунчера · Установить
+          </button>
+        )}
 
         {error && <div className="error">{error}</div>}
 
