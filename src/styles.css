@@ -147,3 +147,91 @@ h1 {
   color: #888;
   text-align: center;
 }
+
+.settings-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #aaa;
+  font-size: 20px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.3s;
+}
+.settings-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  transform: rotate(60deg);
+}
+.settings-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(6px);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal {
+  background: #181820;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 32px 40px;
+  width: 480px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+.modal h2 {
+  margin: 0 0 24px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.folder-row {
+  display: flex;
+  gap: 8px;
+}
+
+.folder-row input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #ccc;
+  font-size: 13px;
+  outline: none;
+  font-family: 'Consolas', monospace;
+}
+
+.browse {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0 18px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+}
+.browse:hover { background: rgba(255, 255, 255, 0.1); }
+
+.hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #666;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: #c14a4a;
+  height: 6px;
+}

@@ -15,13 +15,21 @@ function offlineUuid(username: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
-export async function launchMinecraft(username: string, manifest: Manifest, progress: Progress) {
+export async function launchMinecraft(
+  username: string,
+  ramGb: number,
+  manifest: Manifest,
+  progress: Progress
+) {
   const root = mcDir();
 
   const javaExe = await ensureJava21(progress);
   await ensureNeoForge(manifest.neoforge, javaExe, progress);
 
   progress({ stage: 'launch', percent: 95, detail: 'Запуск Minecraft' });
+
+  const max = Math.max(2, Math.min(32, Math.floor(ramGb || 6)));
+  const min = Math.max(1, Math.min(max, 2));
 
   const launcher = new Client();
   const opts: any = {
@@ -39,7 +47,7 @@ export async function launchMinecraft(username: string, manifest: Manifest, prog
       type: 'release',
       custom: neoVersionId(manifest.neoforge),
     },
-    memory: { max: '6G', min: '2G' },
+    memory: { max: `${max}G`, min: `${min}G` },
     javaPath: javaExe,
     overrides: { detached: true },
   };
